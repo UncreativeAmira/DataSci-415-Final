@@ -5,19 +5,18 @@ date: "2025-04-20"
 ---
 ```{r installPackages, echo=FALSE, include=FALSE, message=FALSE}
 #ggplot2
-install.packages("ggplot2")
+#install.packages("ggplot2")
 library(ggplot2)
-install.packages("dplyr")
+#install.packages("dplyr")
 library(dplyr)
 library(tidyverse)
-install.packages("nnet")
+#install.packages("nnet")
 library(nnet)
-install.packages("ISLR")
+#install.packages("ISLR")
 library(ISLR)
-install.packages("tree")
+#install.packages("tree")
 library(tree)
-
-install.packages("randomForest")
+#install.packages("randomForest")
 library(randomForest)
 ```
 
@@ -78,9 +77,8 @@ print(range(question_1_data$BPQ080))
 ```
 
 
-```{r setup, include=FALSE}
+```{r}
 #Now that we finished the clean up, let's begin! Visualizations!!!!!
-
 
 #The first part of this question
 #is asking about a link between poverty level and diet health.
@@ -130,7 +128,7 @@ ggplot(balanced_data, aes(x = INDFMMPC, y = DBQ700)) +
 ```
 
 ```{r}
-#FIRST TREES: PREDICT POVERTY LEVEL WITH DIET
+
 #First, correct variable types
 question_1_data$INDFMMPC <- as.factor(question_1_data$INDFMMPC)
 question_1_data$DBQ700 <- as.factor(question_1_data$DBQ700)
@@ -142,6 +140,31 @@ question_1_data$BPQ080 <- as.factor(question_1_data$BPQ080)
 question_1_data$DIQ010 <- as.factor(question_1_data$DIQ010)
 question_1_data$INDFMPIR <- as.numeric(question_1_data$INDFMPIR)
 
+#Let's also do that for the 'data' data frame, since we switch to data eventually
+#There's no difference between the two in reality!
+data$INDFMMPC <- as.factor(data$INDFMMPC)
+data$INDFMPIR <- as.numeric(data$INDFMPIR)
+data$DBQ700 <- as.factor(data$DBQ700)
+data$DBD895 <- as.numeric(data$DBD895)
+data$DBD905 <- as.numeric(data$DBD905)
+data$DBD910 <- as.numeric(data$DBD910)
+data$BPQ020 <- as.factor(data$BPQ020)
+data$BPQ080 <- as.factor(data$BPQ080)
+data$DIQ010 <- as.factor(data$DIQ010)
+data$depressed <- as.factor(data$depressed)
+data$RIAGENDR <- as.factor(data$RIAGENDR)
+data$RIDAGEYR <- as.numeric(data$RIDAGEYR)
+data$RIDRETH1 <- as.factor(data$RIDRETH1)
+data$DMDBORN4 <- as.factor(data$DMDBORN4)
+data$DMDEDUC2 <- as.factor(data$DMDEDUC2)
+data$DMDMARTZ <- as.factor(data$DMDMARTZ)
+data$BMXBMI <- as.numeric(data$BMXBMI)
+data$ALQ111 <- as.factor(data$ALQ111)
+data$ALQ121 <- as.factor(data$ALQ121)
+data$SMQ020 <- as.factor(data$SMQ020)
+data$MCQ010 <- as.factor(data$MCQ010)
+data$MCQ053 <- as.factor(data$MCQ053)
+data$MCQ092 <- as.factor(data$MCQ092)
 
 #split into training and test - 80 20 split
 set.seed(415)
@@ -149,6 +172,7 @@ train_indices <- sample(1:nrow(question_1_data), size = 0.8 * nrow(question_1_da
 train_data <- question_1_data[train_indices,]
 test_data <- question_1_data[-train_indices,]
 
+#FIRST TREES: PREDICT POVERTY LEVEL WITH DIET
 #build the tree w/just diet & food variables, then predict INDFMMPC
 tree.diet_to_poverty_level <- tree(INDFMMPC ~ DBQ700 + DBD895 + DBD905 + DBD910, data = train_data)
 summary(tree.diet_to_poverty_level)
@@ -180,6 +204,7 @@ print(mse)
 #add health conditions
 tree.diet_to_poverty_level_ratio <- tree(INDFMPIR ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + DIQ010, data = train_data)
 summary(tree.diet_to_poverty_level_ratio)
+#we get the same thing
 
 yhat <- predict(tree.diet_to_poverty_level_ratio, newdata = test_data)
 mse <- mean((yhat - test_data$INDFMPIR)^2)
@@ -187,7 +212,51 @@ print(mse)
 
 plot(tree.diet_to_poverty_level_ratio)
 text(tree.diet_to_poverty_level_ratio, pretty = 0)
-title("Diet to Poverty Ratio")
+title("Diet to Ratio of Income to Poverty")
+```
+
+
+```{r}
+#PREDICT DIABETES WITH DIET, INCOME, AND OTHER DIET HEALTH ISSUES
+tree.diet_health_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + INDFMMPC + INDFMPIR, data = question_1_data)
+summary(tree.diet_health_poverty_to_diabetes)
+tree.diet_health_poverty_to_diabetes.pred = predict(tree.diet_health_poverty_to_diabetes, test_data, type="class")
+table(Predicted = tree.diet_health_poverty_to_diabetes.pred, Actual = test_data$DIQ010)
+
+#Example of what happens when there is no variable good enough for prediction
+tree.diet_and_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + INDFMMPC, data = question_1_data)
+summary(tree.diet_and_poverty_to_diabetes)
+
+table(question_1_data$DIQ010)
+min_n <- min(table(question_1_data$DIQ010))
+
+#very unbalanced, causing us issues here
+#lets us a sample
+balanced_data_dia <- question_1_data %>%
+  group_by(DIQ010) %>%
+  slice_sample(n = min_n) %>%
+  ungroup()
+
+
+tree.diet_health_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + INDFMMPC + INDFMPIR, data = balanced_data_dia)
+summary(tree.diet_health_poverty_to_diabetes)
+tree.diet_health_poverty_to_diabetes.pred = predict(tree.diet_health_poverty_to_diabetes, test_data, type="class")
+conf_matrix <- table(Predicted = tree.diet_health_poverty_to_diabetes.pred, Actual = test_data$DIQ010)
+misclass_rate <- 1 - sum(diag(conf_matrix)) / sum(conf_matrix)
+print(misclass_rate)
+plot(tree.diet_health_poverty_to_diabetes)
+text(tree.diet_health_poverty_to_diabetes, pretty = 0)
+title("Diet, health issues, and poverty/income to diabetes (Balanced)")
+
+tree.diet_health_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + INDFMMPC + INDFMPIR, data = data)
+summary(tree.diet_health_poverty_to_diabetes)
+tree.diet_health_poverty_to_diabetes.pred = predict(tree.diet_health_poverty_to_diabetes, test_data, type="class")
+conf_matrix <- table(Predicted = tree.diet_health_poverty_to_diabetes.pred, Actual = test_data$DIQ010)
+misclass_rate <- 1 - sum(diag(conf_matrix)) / sum(conf_matrix)
+print(misclass_rate)
+plot(tree.diet_health_poverty_to_diabetes)
+text(tree.diet_health_poverty_to_diabetes, pretty = 0)
+title("Diet, health issues, and poverty/income to diabetes (Unbalanced)")
 ```
 
 ```{r}
@@ -204,20 +273,22 @@ summary(tree.diet_and_poverty_to_diabetes)
 table(question_1_data$DIQ010)
 min_n <- min(table(question_1_data$DIQ010))
 
-#very unbalenced, so let's try this
+#very unbalanced, so let's try this
 balanced_data_dia <- question_1_data %>%
   group_by(DIQ010) %>%
   slice_sample(n = min_n) %>%
   ungroup()
 
-table(balanced_data_dia$DIQ010)
 
-tree.diet_health_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + INDFMMPC + INDFMPIR, data = balanced_data_dia)
+tree.diet_health_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + INDFMMPC + INDFMPIR, data = data)
 summary(tree.diet_health_poverty_to_diabetes)
 tree.diet_health_poverty_to_diabetes.pred = predict(tree.diet_health_poverty_to_diabetes, test_data, type="class")
 conf_matrix <- table(Predicted = tree.diet_health_poverty_to_diabetes.pred, Actual = test_data$DIQ010)
 misclass_rate <- 1 - sum(diag(conf_matrix)) / sum(conf_matrix)
 print(misclass_rate)
+plot(tree.diet_health_poverty_to_diabetes)
+text(tree.diet_health_poverty_to_diabetes, pretty = 0)
+title("Diet, health issues, and poverty/income to diabetes")
 
 
 ```
@@ -228,29 +299,6 @@ print(misclass_rate)
 #EVERY variable given to us to INDFMMPC
 #from now on we switch to using data as the dataframe. not really a problem
 #since the question_1 data frame was just using specific variables from data
-data$INDFMMPC <- as.factor(data$INDFMMPC)
-data$INDFMPIR <- as.numeric(data$INDFMPIR)
-data$DBQ700 <- as.factor(data$DBQ700)
-data$DBD895 <- as.numeric(data$DBD895)
-data$DBD905 <- as.numeric(data$DBD905)
-data$DBD910 <- as.numeric(data$DBD910)
-data$BPQ020 <- as.factor(data$BPQ020)
-data$BPQ080 <- as.factor(data$BPQ080)
-data$DIQ010 <- as.factor(data$DIQ010)
-data$depressed <- as.factor(data$depressed)
-data$RIAGENDR <- as.factor(data$RIAGENDR)
-data$RIDAGEYR <- as.numeric(data$RIDAGEYR)
-data$RIDRETH1 <- as.factor(data$RIDRETH1)
-data$DMDBORN4 <- as.factor(data$DMDBORN4)
-data$DMDEDUC2 <- as.factor(data$DMDEDUC2)
-data$DMDMARTZ <- as.factor(data$DMDMARTZ)
-data$BMXBMI <- as.numeric(data$BMXBMI)
-data$ALQ111 <- as.factor(data$ALQ111)
-data$ALQ121 <- as.factor(data$ALQ121)
-data$SMQ020 <- as.factor(data$SMQ020)
-data$MCQ010 <- as.factor(data$MCQ010)
-data$MCQ053 <- as.factor(data$MCQ053)
-data$MCQ092 <- as.factor(data$MCQ092)
 
 set.seed(415)
 train_indices <- sample(1:nrow(data), size = 0.8 * nrow(data))
@@ -283,36 +331,28 @@ print(mse)
 
 plot(tree.everything_to_poverty_ratio)
 text(tree.everything_to_poverty_ratio, pretty = 0)
+title("Everything to Ratio of Income Poverty")
 
 
 ```
-```{r}
-#tree here for if food levels, health issues, and income can predict 
-#DIQ010 - Diabetes [Yes, No, Borderline]
-tree.diet_health_poverty_to_diabetes <- tree(DIQ010 ~ DBQ700 + DBD895 + DBD905 + DBD910 + BPQ020 + BPQ080 + INDFMMPC + INDFMPIR, data = train_data)
-summary(tree.diet_health_poverty_to_diabetes)
-
-tree.diet_health_poverty_to_diabetes.pred = predict(tree.diet_health_poverty_to_diabetes, test_data, type="class")
-table(Predicted = tree.diet_health_poverty_to_diabetes.pred, Actual = test_data$DIQ010)
-
-plot(tree.diet_health_poverty_to_diabetes)
-text(tree.diet_health_poverty_to_diabetes, pretty = 0)
-```
 
 ```{r}
-#tree for everything to 
-#DIQ010 - Diabetes [Yes, No, Borderline]
-tree.everything_to_diabetes <- tree(DIQ010 ~ ., data = train_data)
-summary(tree.everything_to_diabetes)
 
+#DIABETES GIVEN EVERYTHING
+
+tree.everything_to_diabetes <- tree(DIQ010 ~ ., data = data)
 tree.everything_to_diabetes.pred = predict(tree.everything_to_diabetes, test_data, type="class")
+summary(tree.everything_to_diabetes)
 conf_matrix <-table(Predicted = tree.everything_to_diabetes.pred, Actual = test_data$DIQ010)
 misclass_rate <- 1 - sum(diag(conf_matrix)) / sum(conf_matrix)
 print(misclass_rate)
-
 plot(tree.everything_to_diabetes)
 text(tree.everything_to_diabetes, pretty = 0)
+title("Everything to diabetes")
+
 ```
+
+
 
 
 
@@ -351,7 +391,6 @@ text(tree.everything_to_blood_pressure, pretty = 0)
 
 
 ```{r}
-#finally
 #BPQ080 - Cholesterol Level
 tree.diet_health_poverty_to_cholesterol <- tree(BPQ080 ~ DBQ700 + DBD895 + DBD905 + DBD910 + DIQ010 + BPQ020 + INDFMMPC + INDFMPIR, data = train_data)
 summary(tree.diet_health_poverty_to_cholesterol)
