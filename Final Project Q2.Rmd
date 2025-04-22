@@ -1,0 +1,107 @@
+---
+title: "Datasci 415 final report code(Research question#2)"
+output:
+  pdf_document:
+    latex_engine: xelatex
+date: "2025-04-20"
+---
+
+```{r setup, include=FALSE}
+install.packages("randomForest")
+install.packages("pROC")
+install.packages("glmnet")
+library(dplyr)
+library(caret)
+library(pROC)
+library(randomForest)
+library(glmnet)
+```
+
+```{r}
+data <- read.csv("~/Desktop/415/DATA (1).csv")  
+```
+
+```{r}
+#Sample data selected
+df <- data %>%
+  select(depressed, DMDEDUC2, DMDMARTZ, SMQ020) %>%
+  filter(!is.na(depressed), !is.na(DMDEDUC2), !is.na(DMDMARTZ), !is.na(SMQ020)) %>%
+  mutate(
+    depressed = factor(depressed, levels = c(0, 1), labels = c("No", "Yes")),
+    DMDEDUC2 = factor(DMDEDUC2),
+    DMDMARTZ = factor(DMDMARTZ),
+    SMQ020 = factor(SMQ020))
+```
+
+```{r}
+#Logistic Regression
+set.seed(415)
+split <- createDataPartition(df$depressed, p = 0.7, list = FALSE)
+train <- df[split, ]
+test <- df[-split, ]
+
+ctrl <- trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+log_model <- train(depressed ~ ., data = train, method = "glm",
+                   family = "binomial", trControl = ctrl, metric = "ROC")
+
+log_probs <- predict(log_model, test, type = "prob")[, "Yes"]
+log_thresh <- coords(roc(test$depressed, log_probs), "best", ret = "threshold")[[1]]
+log_pred <- ifelse(log_probs > log_thresh, "Yes", "No")
+
+log_pred <- factor(log_pred, levels = c("No", "Yes"))
+log_actual <- factor(test$depressed, levels = c("No", "Yes"))
+
+confusionMatrix(log_pred, log_actual)
+```
+
+```{r}
+#Random Forest
+set.seed(415)
+ctrl <- trainControl(method = "cv", number = 10, sampling = "up", classProbs = TRUE, summaryFunction = twoClassSummary)
+rf_model <- train(depressed ~ ., data = train, method = "rf",
+                  trControl = ctrl, metric = "ROC")
+
+rf_probs <- predict(rf_model, newdata = test, type = "prob")[, "Yes"]
+rf_thresh <- coords(roc(test$depressed, rf_probs), "best", ret = "threshold")[[1]]
+rf_pred <- ifelse(rf_probs > rf_thresh, "Yes", "No")
+
+rf_pred <- factor(rf_pred, levels = c("No", "Yes"))
+rf_actual <- factor(test$depressed, levels = c("No", "Yes"))
+
+confusionMatrix(rf_pred, rf_actual)
+```
+
+```{r}
+#LASSO Logistic Regression 
+x_train <- model.matrix(depressed ~ ., train)[, -1]
+x_test <- model.matrix(depressed ~ ., test)[, -1]
+y_train <- ifelse(train$depressed == "Yes", 1, 0)
+y_test <- factor(test$depressed, levels = c("No", "Yes"))
+
+set.seed(415)
+cv_lasso <- cv.glmnet(x_train, y_train, alpha = 1, family = "binomial")
+
+lasso_probs <- predict(cv_lasso, newx = x_test, type = "response", s = "lambda.min")
+
+lasso_thresh <- coords(roc(test$depressed, as.numeric(lasso_probs)), "best", ret = "threshold")[[1]]
+lasso_pred <- ifelse(lasso_probs > lasso_thresh, "Yes", "No")
+
+lasso_pred <- factor(lasso_pred, levels = c("No", "Yes"))
+
+confusionMatrix(lasso_pred, y_test)
+```
+
+```{r}
+plot(log_roc, col = "blue", lwd = 2, main = "ROC Curves: Logistic vs RF vs LASSO")
+lines(rf_roc, col = "green", lwd = 2)
+lines(lasso_roc, col = "red", lwd = 2)
+legend("bottomright",
+       legend = c("Logistic Regression", "Random Forest", "LASSO"),
+       col = c("blue", "green", "red"),
+       lwd = 2,
+       bty = "n")
+```
+The tables included in this report are based on summary statistics derived from the output of the three fitted 
+models—logistic regression, random forest, and LASSO logistic regression—and reflect each model’s performance metrics and variable importance.
+
